@@ -95,7 +95,7 @@ class Trainer(object):
                 target, image = target.cuda(), image.cuda()
                 weights = weights.cuda()
                                             
-            if self.args.mixup or epoch < self.args.steps[0]:
+            if self.args.mixup or (epoch < self.args.steps[0] and self.args.softmix):
                 image, la, lb, lam, o = mixup_data(image, target)
             elif self.args.softmixup:
                 image, la, lb, lam, o = self.DSOSMix(image, target, weights, self.entropies[ids].cuda(), self.previous_preds[ids].cuda(), epoch >= self.args.steps[0])
@@ -214,8 +214,8 @@ class Trainer(object):
         with torch.no_grad():
             tr = copy.deepcopy(self.train_loader.dataset.transform)
             if self.args.dataset == 'miniimagenet_preset':
-                size1 = 320
-                size = 299
+                size1 = 84
+                size = 84
                 mean = [0.4728, 0.4487, 0.4031]
                 std = [0.2744, 0.2663 , 0.2806]
             elif self.args.dataset == 'webvision':

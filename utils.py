@@ -39,8 +39,8 @@ def make_data_loader(args, no_aug=False, transform=None, **kwargs):
     if args.dataset == "miniimagenet_preset":
         mean = [0.4728, 0.4487, 0.4031]
         std = [0.2744, 0.2663 , 0.2806]
-        size1 = 320
-        size = 299
+        size1 = 84
+        size = 84
     elif args.dataset == 'webvision':
         mean = [0.485, 0.456, 0.406]
         std = [0.229, 0.224, 0.225]
@@ -75,7 +75,7 @@ def make_data_loader(args, no_aug=False, transform=None, **kwargs):
         trainset.clean_noisy = clean_noisy
         testset = MiniImagenet84(val_data, val_labels, transform=transform_test)
     elif args.dataset == "webvision":
-        from datasets.webvision import webvision_dataset, imagenet_dataset
+        from datasets.webvision import webvision_dataset
         trainset = webvision_dataset(transform=transform_train, mode="train", num_class=50)
         testset = webvision_dataset(transform=transform_test, mode="test", num_class=50)
     elif args.dataset == 'clothing':
