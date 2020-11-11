@@ -39,8 +39,8 @@ def make_data_loader(args, no_aug=False, transform=None, **kwargs):
     if args.dataset == "miniimagenet_preset":
         mean = [0.4728, 0.4487, 0.4031]
         std = [0.2744, 0.2663 , 0.2806]
-        size1 = 84
-        size = 84
+        size1 = 320
+        size = 299
     elif args.dataset == 'webvision':
         mean = [0.485, 0.456, 0.406]
         std = [0.229, 0.224, 0.225]
@@ -128,10 +128,11 @@ class UnNormalize(object):
     
 
 class DSOS(torch.nn.Module):
-    def __init__(self, a=.1, alpha=1):
+    def __init__(self, args, a=.1, alpha=1):
         super(DSOS, self).__init__()
         self.a = a
         self.alpha = alpha
+        self.args = args
 
     def forward(self, x, y, weights1, weights2, preds, eps):
         if self.alpha > 0:
@@ -145,8 +146,12 @@ class DSOS(torch.nn.Module):
         
         index = torch.randperm(batch_size).to(device)
         if eps:
-            y[weights1] = preds[weights1]
-            y_s = F.softmax(y/self.a*(1-weights2.view(-1,1)), dim=1)
+            if self.args.boot:
+                y[weights1] = preds[weights1]
+            if self.args.soft:
+                y_s = F.softmax(y/self.a*(1-weights2.view(-1,1)), dim=1)
+            else:
+                y_s = F.softmax(y/.2, dim=1)
         else:
             y_s = F.softmax(y/.2, dim=1)
 

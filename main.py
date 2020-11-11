@@ -45,7 +45,7 @@ class Trainer(object):
         print('Number of parameters', sum(p.numel() for p in model.parameters() if p.requires_grad))
         
         self.model = nn.DataParallel(model).cuda()
-        self.DSOSMix = DSOS(a=.08, alpha=1)
+        self.DSOSMix = DSOS(args, a=.1, alpha=1)
 
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=5e-4)
         self.criterion_nored = nn.CrossEntropyLoss(reduction='none')
@@ -95,9 +95,10 @@ class Trainer(object):
                 target, image = target.cuda(), image.cuda()
                 weights = weights.cuda()
                                             
-            if self.args.mixup:
-                #image, la, lb, lam, o = mixup_data(image, target)
-                image, la, lb, lam, o = self.DSOSMix(image, target, weights, self.entropies[ids].cuda(), self.previous_preds[ids].cuda(), False)#epoch >= self.args.steps[0])
+            if self.args.mixup or epoch < self.args.steps[0]:
+                image, la, lb, lam, o = mixup_data(image, target)
+            elif self.args.softmixup:
+                image, la, lb, lam, o = self.DSOSMix(image, target, weights, self.entropies[ids].cuda(), self.previous_preds[ids].cuda(), epoch >= self.args.steps[0])
                 
             if False:
                 for i, im in enumerate(image):
@@ -111,20 +112,20 @@ class Trainer(object):
             self.optimizer.zero_grad()
             
             outputs = self.model(image)
-            if self.args.mixup:
+            if self.args.mixup or self.args.softmixup:
                 loss_b = lam * multi_class_loss(outputs, la) + (1-lam) * multi_class_loss(outputs, lb)
             else:
                 loss_b = multi_class_loss(outputs, target)
 
-            if self.args.entro:
-                if epoch >= self.args.steps[0] and False:
+            if self.args.entro and epoch >= self.args.steps[0]:
+                if self.args.soft:
                     a = 1-self.entropies[ids].mean()
                 else:
                     a = .4
                 loss_b += a * torch.sum(-F.softmax(outputs, dim=1) * F.log_softmax(outputs, dim=1), dim=1) #* (weights * lam + weights[o] * (1-lam)) / (lam * weights + (1-lam) * weights[o]).sum()
 
             loss = torch.mean(loss_b)
-            if not self.args.mixup:
+            if not (self.args.mixup or self.args.softmixup):
                 preds = torch.argmax(F.log_softmax(outputs, dim=1), dim=1)
                 acc += torch.sum(preds == torch.argmax(target, dim=1))
 
@@ -138,7 +139,7 @@ class Trainer(object):
         if epoch == self.args.steps[0] - 1 or epoch == 49:
             self.save_model(epoch, t=True)
         print('[Epoch: {}, numImages: {}, numClasses: {}]'.format(epoch, total_sum, self.args.num_class))
-        if not self.args.mixup:
+        if not (self.args.mixup or self.args.softmixup):
             print('Training Accuracy: {0:.4f}'.format(float(acc)/total_sum))
             self.train_acc.append(float(acc)/total_sum)
             torch.save(torch.tensor(self.train_acc), os.path.join(self.args.save_dir, '{0}_trainacc.pth.tar'.format(self.args.checkname)))
@@ -213,8 +214,8 @@ class Trainer(object):
         with torch.no_grad():
             tr = copy.deepcopy(self.train_loader.dataset.transform)
             if self.args.dataset == 'miniimagenet_preset':
-                size1 = 84
-                size = 84
+                size1 = 320
+                size = 299
                 mean = [0.4728, 0.4487, 0.4031]
                 std = [0.2744, 0.2663 , 0.2806]
             elif self.args.dataset == 'webvision':
@@ -271,11 +272,11 @@ class Trainer(object):
                 entropy[ids] = (- accuracy_soft * torch.log(accuracy_soft)).sum(dim=1)
 
                 #Track train accuracy
-                if self.args.mixup:
+                if self.args.mixup or self.args.softmixup:
                     display_acc += (preds == target).sum()
                     total_sum += preds.size(0)
                     
-            if self.args.mixup:
+            if self.args.mixup or self.args.softmixup:
                 print('Training Accuracy: {0:.4f}'.format(float(display_acc)/total_sum))
                 
             self.train_loader.dataset.transform = tr
@@ -301,11 +302,16 @@ def main():
     parser.add_argument('--exp-name', type=str, default='')
     parser.add_argument('--seed', default=1, type=float)
     parser.add_argument('--mixup', default=False, action='store_true')
+    parser.add_argument('--softmixup', default=False, action='store_true')
     parser.add_argument('--entro', default=False, action='store_true')
 
     parser.add_argument('--noisy-labels', default=None, type=str)
     parser.add_argument('--lam', default=0, type=float)
     parser.add_argument('--noise-ratio', default="0.2", type=str)
+    parser.add_argument('--track', default=False, action='store_true')
+    parser.add_argument('--boot', default=False, action='store_true')
+    parser.add_argument('--soft', default=False, action='store_true')
+    parser.add_argument('--resume', default=None, type=str)
 
     args = parser.parse_args()
     torch.backends.cudnn.deterministic = True
@@ -358,59 +364,51 @@ def main():
 
         #Refinement of the class labels
         start_ep = 0
-        '''
-        load_dict = torch.load("weightsmixup_soft_sota.pth.tar")
-        #load_dict = torch.load("theseweights_alpha1.pth.tar")
-        _trainer.model.module.load_state_dict(load_dict['state_dict'])
-        _trainer.optimizer.load_state_dict(load_dict['optimizer'])
-        start_ep = load_dict['epoch']
-        steps = [s-start_ep for s in args.steps if s-start_ep > 0]
-        #load_dict = torch.load("mixup_metrics50")
+        if args.resume is not None:
+            load_dict = torch.load(args.resume)
+            _trainer.model.module.load_state_dict(load_dict['state_dict'])
+            _trainer.optimizer.load_state_dict(load_dict['optimizer'])
+            start_ep = load_dict['epoch']
+            steps = [s-start_ep for s in args.steps if s-start_ep > 0]
 
-        #losses_t = load_dict['losses']
-        #accuracies_t = load_dict['accuracies']
-        #entropy_t = load_dict['entropy']
-        #forget_t = load_dict['forget']
+            _trainer.scheduler = torch.optim.lr_scheduler.MultiStepLR(_trainer.optimizer, milestones=steps, gamma=_trainer.args.gamma)
+            for _ in range(0):
+                _trainer.optimizer.step()
+                _trainer.scheduler.step()
+                start_ep += 1
+            if args.track:
+                losses, accuracies, forget, entropy = _trainer.track_loss(relabel, plot=False)
+                
+                l = accuracies
+                l = (l - l.min()) / (l.max() - l.min())
+                e = entropy
+                e = (e-e.min()) / (e.max() - e.min())
+                
+                _trainer.entropies = e
+                perc = np.percentile(l*e, 5)
+                _trainer.train_loader.dataset.clean_noisy = (l*e<perc)#mm_soft
+                
+                accuracies_t[start_ep-1] = accuracies
+                entropy_t[start_ep-1] = entropy
+                losses_t[start_ep-1] = losses
+                forget_t[start_ep-1] = forget
+                
+                save_dict = {'losses': losses_t, 'accuracies': accuracies_t, 'forget': forget_t, 'entropy': entropy_t}
+                
+                torch.save(save_dict, os.path.join(args.save_dir, '{0}_metrics_ep{1}'.format(args.checkname, start_ep-1+1)))
+                
+            v, loss, acc = _trainer.val(start_ep)
 
-
-        _trainer.scheduler = torch.optim.lr_scheduler.MultiStepLR(_trainer.optimizer, milestones=steps, gamma=_trainer.args.gamma)
-        for _ in range(0):
-            _trainer.optimizer.step()
-            _trainer.scheduler.step()
-            start_ep += 1
-
-        losses, accuracies, forget, entropy, diffpred, calibration_ece, calibration_oe = _trainer.track_loss(relabel, plot=False)
-
-        l = accuracies
-        l = (l - l.min()) / (l.max() - l.min())
-        bmm = BetaMixture1D(max_iters=100)
-        bmm.fit(l)
-        #mm_soft = (bmm.posterior(l, 1) > .5) * 1.
-        _trainer.accuracy = bmm.posterior(l, 1)
-        #trainer.train_loader.dataset.clean_noisy = l#mm_soft
-        e = entropy
-        e = (e-e.min()) / (e.max() - e.min())
-        _trainer.entropies = e
-        perc = np.percentile(l*e, 5)
-        _trainer.train_loader.dataset.clean_noisy = (l*e<perc)#mm_soft
-        accuracies_t[start_ep-1] = accuracies
-        entropy_t[start_ep-1] = entropy
-            
-        v, loss, acc = _trainer.val(start_ep)
-        '''
         for eps in range(start_ep, args.epochs):
             _trainer.train(eps)
 
-            if eps >= args.steps[0] - 1 and False:
+            if eps >= args.steps[0] - 1 and args.track:
                 losses, accuracies, forget, entropy = _trainer.track_loss(relabel, plot=False)
                 #Metrics tracking
                 losses_t[eps] = losses
                 accuracies_t[eps] = accuracies
                 forget_t[eps] = forget
                 entropy_t[eps] = entropy
-                diffpred_t[eps] = diffpred
-                calibrationece_t[eps] = calibration_ece
-                calibrationoe_t[eps] = calibration_oe
             
                 l = accuracies_t.mean(dim=0)
                 l = (l - l.min()) / (l.max() - l.min())
@@ -422,7 +420,7 @@ def main():
                 perc = np.percentile(l*e, 5)
                 _trainer.train_loader.dataset.clean_noisy = (l*e<perc)
                 
-                save_dict = {'losses': losses_t, 'accuracies': accuracies_t, 'forget': forget_t, 'entropy': entropy_t, 'diffpred': diffpred, 'cal_ece': calibrationece_t, 'cal_oe': calibrationoe_t}
+                save_dict = {'losses': losses_t, 'accuracies': accuracies_t, 'forget': forget_t, 'entropy': entropy_t}
                 
                 torch.save(save_dict, os.path.join(args.save_dir, '{0}_metrics_ep{1}'.format(args.checkname, eps+1)))
 
