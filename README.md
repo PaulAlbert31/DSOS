@@ -1,6 +1,7 @@
 # Official Pytorch implementation for *Addressing out-of-distribution label noise in webly-labelled data*.
 Paper link: *to come*
-![DSOS](https://github.com/PaulAlbert31/DSOS/DSOS.pdf)
+
+![DSOS](DSOS.pdf)
 
 ## Set dataset location
 The path to the datasets should me set in the **mypath.py** file
