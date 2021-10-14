@@ -1,10 +1,8 @@
 from __future__ import print_function, division, absolute_import
 import torch
 import torch.nn as nn
-import os
-import sys
 
-
+#InceptionResNetV2 with optional dropout
 class BasicConv2d(nn.Module):
 
     def __init__(self, in_planes, out_planes, kernel_size, stride, padding=0):
@@ -207,7 +205,7 @@ class Block8(nn.Module):
 
 class InceptionResNetV2(nn.Module):
 
-    def __init__(self, num_classes=1001):
+    def __init__(self, num_classes=1001, drop_ratio=0.0):
         super(InceptionResNetV2, self).__init__()
         # Special attributs
         self.input_space = None
@@ -273,6 +271,7 @@ class InceptionResNetV2(nn.Module):
         self.block8 = Block8(noReLU=True)
         self.conv2d_7b = BasicConv2d(2080, 1536, kernel_size=1, stride=1)
         self.avgpool_1a = nn.AdaptiveAvgPool2d((1,1))
+        self.dropout = nn.Dropout(0.0)
         self.last_linear = nn.Linear(1536, num_classes)
 
     def features(self, input):
@@ -296,6 +295,7 @@ class InceptionResNetV2(nn.Module):
     def logits(self, features):
         x = self.avgpool_1a(features)
         x = x.view(x.size(0), -1)
+        x = self.dropout(x)
         x = self.last_linear(x)
         return x
 

@@ -1,11 +1,5 @@
-#https://github.com/LiJunnan1992/DivideMix/blob/master/dataloader_webvision.py
-from torch.utils.data import Dataset, DataLoader
-import torchvision.transforms as transforms
-import random
-import numpy as np
+from torch.utils.data import Dataset
 from PIL import Image
-import torch
-import os
 from mypath import Path
 
 class webvision_dataset(Dataset): 
@@ -38,16 +32,14 @@ class webvision_dataset(Dataset):
                     train_imgs.append(img)
                     self.targets.append(target)
             self.data = train_imgs
-        
-            self.clean_noisy = torch.ones(len(self.data))
-                    
+                            
     def __getitem__(self, index):
         if self.mode=='train':
             img_path = self.data[index]
             target = self.targets[index]
             image = Image.open(self.root+img_path).convert('RGB') 
             img = self.transform(image)
-            return {'image':img, 'target':target, 'index':index, 'clean_noisy':self.clean_noisy[index]}
+            return {'image':img, 'target':target, 'index':index}
         elif self.mode=='test':
             img_path = self.val_imgs[index]
             target = self.val_labels[index]
@@ -60,64 +52,3 @@ class webvision_dataset(Dataset):
             return len(self.data)
         else:
             return len(self.val_imgs)    
-
-
-class webvision_dataloader():  
-    def __init__(self, batch_size, num_class, num_workers, root_dir, log):
-
-        self.batch_size = batch_size
-        self.num_class = num_class
-        self.num_workers = num_workers
-        self.root_dir = root_dir
-        self.log = log
-
-        self.transform_train = transforms.Compose([
-            #transforms.Resize(256),
-            transforms.CenterCrop(227),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0.485, 0.456, 0.406),(0.229, 0.224, 0.225)),
-        ]) 
-        self.transform_test = transforms.Compose([
-            #transforms.Resize(256),
-            transforms.CenterCrop(227),
-            transforms.ToTensor(),
-            transforms.Normalize((0.485, 0.456, 0.406),(0.229, 0.224, 0.225)),
-        ])  
-        self.transform_imagenet = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(227),
-            transforms.ToTensor(),
-            transforms.Normalize((0.485, 0.456, 0.406),(0.229, 0.224, 0.225)),
-        ])         
-
-    def run(self,mode,pred=[],prob=[]):
-        if mode=='train':
-            all_dataset = webvision_dataset(root_dir=self.root_dir, transform=self.transform_train, mode="train", num_class=self.num_class)                
-            trainloader = DataLoader(
-                dataset=all_dataset, 
-                batch_size=self.batch_size*2,
-                shuffle=True,
-                num_workers=self.num_workers,
-                pin_memory=True)                 
-            return trainloader
-                                             
-        elif mode=='test':
-            test_dataset = webvision_dataset(root_dir=self.root_dir, transform=self.transform_test, mode='test', num_class=self.num_class)      
-            test_loader = DataLoader(
-                dataset=test_dataset, 
-                batch_size=self.batch_size*20,
-                shuffle=False,
-                num_workers=self.num_workers,
-                pin_memory=True)               
-            return test_loader
-        
-        elif mode=='imagenet':
-            imagenet_val = imagenet_dataset(root_dir=self.root_dir, transform=self.transform_imagenet, num_class=self.num_class)      
-            imagenet_loader = DataLoader(
-                dataset=imagenet_val, 
-                batch_size=self.batch_size*20,
-                shuffle=False,
-                num_workers=self.num_workers,
-                pin_memory=True)               
-            return imagenet_loader     

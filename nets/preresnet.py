@@ -6,11 +6,10 @@ PreActBlock and PreActBottleneck module is from the later paper:
 [2] Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun
     Identity Mappings in Deep Residual Networks. arXiv:1603.05027
 '''
+#ResNet modified for CIFAR-10
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from torch.autograd import Variable
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -63,34 +62,6 @@ class PreActBlock(nn.Module):
         out = F.relu(self.bn1(x))
         shortcut = self.shortcut(out)
         out = self.conv1(out)
-        out = self.conv2(F.relu(self.bn2(out)))
-        out += shortcut
-        return out
-
-
-class PreActBlock_drop(nn.Module):
-    '''Pre-activation version of the BasicBlock.'''
-    expansion = 1
-
-    def __init__(self, in_planes, planes, stride=1):
-        super(PreActBlock_drop, self).__init__()
-        self.bn1 = nn.BatchNorm2d(in_planes)
-        self.conv1 = conv3x3(in_planes, planes, stride)
-        self.dropout = nn.Dropout(p=0.1)
-        self.bn2 = nn.BatchNorm2d(planes)
-        self.conv2 = conv3x3(planes, planes)
-
-        self.shortcut = nn.Sequential()
-        if stride != 1 or in_planes != self.expansion*planes:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False)
-            )
-
-    def forward(self, x):
-        out = F.relu(self.bn1(x))
-        shortcut = self.shortcut(out)
-        out = self.conv1(out)
-        out = self.dropout(out)
         out = self.conv2(F.relu(self.bn2(out)))
         out += shortcut
         return out
@@ -159,8 +130,8 @@ class ResNet(nn.Module):
         super(ResNet, self).__init__()
         self.in_planes = 64
         
-        #self.conv1 = conv3x3(3,64)
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1 = conv3x3(3,64)
+        #self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
@@ -190,14 +161,13 @@ class ResNet(nn.Module):
             out = self.conv1(out)
             out = self.bn1(out)
             out = F.relu(out)
-            out = self.maxpool(out)
+            #out = self.maxpool(out)
         if lin < 2 and lout > 0:
             out = self.layer1(out)
         if lin < 3 and lout > 1:
             out = self.layer2(out)
         if lin < 4 and lout > 2:
             out = self.layer3(out)
-
         if lin < 5 and lout > 3:
             out = self.layer4(out)
             if lout == 4:
@@ -212,10 +182,7 @@ class ResNet(nn.Module):
 def PreActResNet18(num_classes):
     return ResNet(PreActBlock, [2,2,2,2], num_classes=num_classes)
 
-def PreactResNet18_drop(drop_val = 0.1, num_classes = 100):
-    return ResNet(PreActBlock_drop, [2,2,2,2], num_classes = num_classes)
-
-def PreActResNet34(num_classes, dataset=None):
+def PreActResNet34(num_classes):
     return ResNet(BasicBlock, [3,4,6,3], num_classes=num_classes)
 
 def PreActResNet50(num_classes):
