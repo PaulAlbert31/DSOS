@@ -20,6 +20,6 @@ You can resume a checkpoint using
 @inproceedings{2022_WACV_DSOS,
   title="{Addressing out-of-distribution label noise in webly-labelled data}",
   author="Albert, Paul and Ortego, Diego and Arazo, Eric and O{'}Connor, Noel and McGuinness, Kevin",
-  booktitle="{Workshop on Applications of Computer Vision (WACV)}",
+  booktitle="{Winter Conference on Applications of Computer Vision (WACV)}",
   year="2022"}
 ```
