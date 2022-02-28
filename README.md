@@ -18,7 +18,7 @@ You can resume a checkpoint using
 ## Trained model
 The models trained on Webvision can be downloaded here (--seeds 1, 2 ,3): [gdrive](https://drive.google.com/drive/folders/1A0Z2CmKWhz9PlNaq4Rov1QMaiM48wmiz?usp=sharing)
 
-##Testing on imagenet
+## Testing on imagenet
 The model trained on Webvision can be tested on the Imagenet validation set using
 
 ```
