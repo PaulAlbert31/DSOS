@@ -50,6 +50,11 @@ def make_data_loader(args, no_aug=False, transform=None, **kwargs):
         std = [0.229, 0.224, 0.225]
         size1 = 256
         size = 227
+    elif args.dataset == 'clothing':
+        mean = [0.6959, 0.6537, 0.6371]
+        std = [0.3113, 0.3192, 0.3214]
+        size1 = 256
+        size = 224
 
     if args.aug == 'rc':
         transform_train = torchvision.transforms.Compose([
@@ -97,6 +102,12 @@ def make_data_loader(args, no_aug=False, transform=None, **kwargs):
         trainset = webvision_dataset(transform=transform_train, mode="train", num_class=50)
         trackset = webvision_dataset(transform=transform_test, mode="train", num_class=50)
         testset = webvision_dataset(transform=transform_test, mode="test", num_class=50)
+    elif args.dataset == 'clothing':
+        from datasets.clothing import clothing_dataset
+        trainset = clothing_dataset(transform=transform_train, split="train", num_samples=args.batch_size*1000)
+        trackset = copy.deepcopy(trainset) #Could do that for every dataset, might be faster
+        trackset.transform = transform_test
+        testset = clothing_dataset(transform=transform_test, split="val")
     else:
         raise NotImplementedError("Dataset {} is not implemented".format(args.dataset))
     

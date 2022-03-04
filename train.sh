@@ -53,3 +53,6 @@ CUDA_VISIBLE_DEVICES=0 python main.py --dataset miniimagenet_preset --epochs 200
 CUDA_VISIBLE_DEVICES=0 python main.py --dataset miniimagenet_preset --epochs 200 --batch-size 32 --net inception --lr 0.01 --steps 100 160 --seed 1 --exp-name miniimagenet_DSOS_30 --noise-ratio 0.3 --soft --entro --boot --alpha .05 --entro --dsos --mixup --track > logs/logs_mini_30.txt
 CUDA_VISIBLE_DEVICES=0 python main.py --dataset miniimagenet_preset --epochs 200 --batch-size 32 --net inception --lr 0.01 --steps 100 160 --seed 1 --exp-name miniimagenet_DSOS_50 --noise-ratio 0.5 --soft --entro --boot --alpha .05 --entro --dsos --mixup --track > logs/logs_mini_50.txt
 CUDA_VISIBLE_DEVICES=0 python main.py --dataset miniimagenet_preset --epochs 200 --batch-size 32 --net inception --lr 0.01 --steps 100 160 --seed 1 --exp-name miniimagenet_DSOS_80 --noise-ratio 0.8 --soft --entro --boot --alpha .05 --entro --dsos --mixup --track > logs/logs_mini_80.txt
+
+#Clothing1M
+CUDA_VISIBLE_DEVICES=0 python main.py --dataset clothing --epochs 100 --batch-size 32 --net resnet50 --lr 0.002 --steps 50 80 --seed 1 --exp-name clothing_DSOS_1 --track --dsos --entro --mixup --alpha .05 --soft --boot --correct-ep 1 > logs/logs_clothing_DSOS.txt 

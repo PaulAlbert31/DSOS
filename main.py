@@ -216,18 +216,26 @@ class Trainer(object):
                 image, target, ids = sample['image'], sample['target'], sample['index']
                 if self.args.cuda:
                     target, image = target.cuda(), image.cuda()
-                    
+
                 outputs = self.model(image)
+                preds = F.softmax(outputs, dim=1)
                 
                 #Track entropy
-                preds = F.softmax(outputs, dim=1)
                 mid_lab = (preds + target) / 2
                 nentropy[ids] = - torch.log(((mid_lab)**2).sum(dim=1)).cpu() #collision entropy
+                
+                if self.args.cons:
+                    image2 = sample['image2'].cuda()
+                    outputs2 = self.model(image2)
+                    outputs = (outputs + F.softmax(outputs2, dim=-1)) / 2
+                    outputs = outputs **2 #temp sharp
+                    preds = outputs / outputs.sum(dim=1, keepdim=True) #normalization
+
                 self.previous_preds[ids] = F.one_hot(torch.argmax(preds, dim=1), num_classes=self.args.num_class).cpu()
                 
                 #Track train accuracy
                 if self.args.mixup:
-                    display_acc += (preds == target).sum()
+                    display_acc += (torch.argmax(preds, dim=-1) == torch.argmax(target, dim=-1)).sum()
                     total_sum += preds.size(0)
                     
             if self.args.mixup:
@@ -271,6 +279,7 @@ def main():
     
     parser.add_argument('--drop-ratio', default=0.0, type=float)
     parser.add_argument('--aug', default='rc', type=str)
+    parser.add_argument('--cons', default=False, action='store_true')
     
     args = parser.parse_args()
     torch.backends.cudnn.deterministic = True
@@ -394,6 +403,7 @@ def main():
                 #Fitting a 2 components BMM to the noisy samples
                 noisy = (nentropy >= lim)
                 interest = min_max(nentropy[noisy])
+                
                 bmm = BetaMixture1D(n_components=2).fit(interest)
                 
                 #Computing the BMM modes to order the detection
